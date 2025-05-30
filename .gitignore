@@ -1,0 +1,41 @@
+# .gitignore
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+temp/
+
+# Log files
+*.log
+logs/
+
+# Personal notes (avoid committing personal information)
+notes.md
+personal-notes/
+scratch/
+
+# Screenshots with potentially sensitive information
+screenshots-temp/
+sensitive-images/
+
+# Local configuration files
+.env
+.env.local
+config.local.*

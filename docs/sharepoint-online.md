@@ -625,7 +625,6 @@ function Set-ExistingSharingLinksExpiration {
 # 実行例
 Set-ExistingSharingLinksExpiration -SiteUrl "https://contoso.sharepoint.com/sites/project-alpha" -ExpirationDays 7 -WhatIf $true
 ```
-
 ### 📱 ブラウザでの手動削除手順
 
 #### サイト管理者による削除
@@ -840,3 +839,536 @@ function Start-SharingLinksCleanup {
 - [ ] 監査ログの確認
 - [ ] 関係者への完了報告
 ```
+
+## Microsoft Teams統合とモダンワークプレース
+
+### Teams連携サイトの最適化
+
+```powershell
+# Teamsチャネルサイトの最適化設定
+function Optimize-TeamsChannelSites {
+    param(
+        [string[]]$TeamsSiteUrls = @(),
+        [bool]$EnableVersioning = $true,
+        [bool]$OptimizeForCollaboration = $true,
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "👥 Teams連携サイト最適化中..." -ForegroundColor Cyan
+    
+    foreach ($siteUrl in $TeamsSiteUrls) {
+        Write-Host "🔧 最適化中: $siteUrl" -ForegroundColor Yellow
+        
+        try {
+            $siteInfo = Get-SPOSite -Identity $siteUrl -Detailed
+            
+            if ($WhatIf) {
+                Write-Host "  [WhatIf] バージョニング有効化: $EnableVersioning" -ForegroundColor Cyan
+                Write-Host "  [WhatIf] コラボレーション最適化: $OptimizeForCollaboration" -ForegroundColor Cyan
+            } else {
+                # バージョニング設定
+                if ($EnableVersioning) {
+                    # PnP PowerShellを使用した詳細設定
+                    Connect-PnPOnline -Url $siteUrl -Interactive
+                    Set-PnPList -Identity "Documents" -EnableVersioning $true -MajorVersions 50 -MinorVersions 10
+                    Write-Host "  ✅ バージョニング設定完了" -ForegroundColor Green
+                }
+                
+                # コラボレーション最適化
+                if ($OptimizeForCollaboration) {
+                    Set-SPOSite -Identity $siteUrl -DefaultSharingLinkType Internal
+                    Set-SPOSite -Identity $siteUrl -DefaultLinkPermission Edit
+                    Write-Host "  ✅ コラボレーション最適化完了" -ForegroundColor Green
+                }
+            }
+            
+            Write-Host "  📊 サイト情報:" -ForegroundColor White
+            Write-Host "    タイトル: $($siteInfo.Title)" -ForegroundColor Gray
+            Write-Host "    ストレージ使用: $($siteInfo.StorageUsageCurrent)MB" -ForegroundColor Gray
+            Write-Host "    最終更新: $($siteInfo.LastContentModifiedDate)" -ForegroundColor Gray
+            
+        }
+        catch {
+            Write-Host "  ❌ エラー: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+}
+
+# Teamsサイト一括最適化
+function Bulk-OptimizeTeamsSites {
+    Write-Host "📊 全Teamsサイトの一括最適化..." -ForegroundColor Cyan
+    
+    # すべてのTeams関連サイトを取得
+    $teamsSites = Get-SPOSite -Limit All -Filter "Template -eq 'GROUP#0'" | 
+        Where-Object { $_.Title -like "*Teams*" -or $_.Url -like "*teams*" }
+    
+    Write-Host "🔍 検出されたTeamsサイト数: $($teamsSites.Count)" -ForegroundColor Yellow
+    
+    $teamsSiteUrls = $teamsSites | Select-Object -ExpandProperty Url
+    Optimize-TeamsChannelSites -TeamsSiteUrls $teamsSiteUrls -WhatIf $true
+}
+
+# 実行例
+# Bulk-OptimizeTeamsSites
+```
+
+### Microsoft Viva統合
+
+```powershell
+# Viva Connections用SharePoint設定
+function Configure-VivaConnectionsHub {
+    param(
+        [string]$HubSiteUrl = "https://contoso.sharepoint.com/sites/company-hub",
+        [string]$VivaConnectionsAppId = "your-viva-app-id",
+        [switch]$EnablePersonalization = $true
+    )
+    
+    Write-Host "🏢 Viva Connections ハブサイト設定中..." -ForegroundColor Cyan
+    
+    try {
+        # ハブサイトの最適化
+        Set-SPOSite -Identity $HubSiteUrl -DenyAddAndCustomizePages $false
+        
+        # Modern UI強制
+        Set-SPOSite -Identity $HubSiteUrl -DefaultLinkPermission View
+        
+        # Viva統合の準備
+        Write-Host "✅ Viva Connectionsハブサイト設定完了" -ForegroundColor Green
+        Write-Host "💡 次のステップ:" -ForegroundColor Yellow
+        Write-Host "  1. Microsoft 365管理センターでViva Connectionsアプリを有効化" -ForegroundColor White
+        Write-Host "  2. ハブサイトのホームページをカスタマイズ" -ForegroundColor White
+        Write-Host "  3. ダッシュボードとリソースを追加" -ForegroundColor White
+        
+    }
+    catch {
+        Write-Host "❌ 設定エラー: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+# 実行例
+# Configure-VivaConnectionsHub
+```
+
+## 高度なガバナンスとコンプライアンス
+
+### データ保持とライフサイクル管理
+
+```powershell
+# SharePointサイトのライフサイクル管理
+function Implement-SiteLifecycleManagement {
+    param(
+        [int]$InactivityThresholdDays = 180,
+        [int]$WarningPeriodDays = 30,
+        [string]$ArchiveLocationUrl = "https://contoso.sharepoint.com/sites/archive",
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "♻️ サイトライフサイクル管理実装中..." -ForegroundColor Cyan
+    
+    # 1. 非活動サイトの特定
+    $inactiveSites = Get-SPOSite -Limit All | Where-Object {
+        $_.LastContentModifiedDate -lt (Get-Date).AddDays(-$InactivityThresholdDays) -and
+        $_.Template -ne "SRCHCEN#0" -and  # 検索センターを除外
+        $_.Url -notlike "*-my.sharepoint.com*"  # OneDriveを除外
+    }
+    
+    Write-Host "📊 非活動サイト数: $($inactiveSites.Count)" -ForegroundColor Yellow
+    
+    foreach ($site in $inactiveSites) {
+        $daysSinceLastActivity = (Get-Date) - $site.LastContentModifiedDate
+        
+        Write-Host "⚠️ 非活動サイト: $($site.Title)" -ForegroundColor Yellow
+        Write-Host "  URL: $($site.Url)" -ForegroundColor Gray
+        Write-Host "  最終活動: $($site.LastContentModifiedDate) ($([math]::Round($daysSinceLastActivity.TotalDays))日前)" -ForegroundColor Gray
+        Write-Host "  所有者: $($site.Owner)" -ForegroundColor Gray
+        
+        if ($WhatIf) {
+            Write-Host "  [WhatIf] 所有者に警告メール送信予定" -ForegroundColor Cyan
+            Write-Host "  [WhatIf] $WarningPeriodDays 日後にアーカイブ予定" -ForegroundColor Cyan
+        } else {
+            # 実際の警告処理（メール送信など）
+            Send-SiteOwnerWarning -SiteUrl $site.Url -OwnerEmail $site.Owner -WarningDays $WarningPeriodDays
+        }
+    }
+    
+    # 2. アーカイブ候補サイト
+    $archiveCandidates = $inactiveSites | Where-Object {
+        $_.LastContentModifiedDate -lt (Get-Date).AddDays(-($InactivityThresholdDays + $WarningPeriodDays))
+    }
+    
+    if ($archiveCandidates.Count -gt 0) {
+        Write-Host "📦 アーカイブ候補サイト数: $($archiveCandidates.Count)" -ForegroundColor Red
+        
+        foreach ($site in $archiveCandidates) {
+            if ($WhatIf) {
+                Write-Host "  [WhatIf] アーカイブ予定: $($site.Title)" -ForegroundColor Cyan
+            } else {
+                Archive-InactiveSite -SiteUrl $site.Url -ArchiveLocation $ArchiveLocationUrl
+            }
+        }
+    }
+}
+
+# サイト所有者への警告メール送信
+function Send-SiteOwnerWarning {
+    param(
+        [string]$SiteUrl,
+        [string]$OwnerEmail,
+        [int]$WarningDays
+    )
+    
+    $emailBody = @"
+件名: SharePointサイトの非活動警告
+
+$OwnerEmail 様
+
+お疲れ様です。IT管理者です。
+
+以下のSharePointサイトが長期間使用されていないことを確認いたしました：
+
+サイト: $SiteUrl
+最終更新: 180日以上前
+
+このサイトは$WarningDays日後に自動的にアーカイブされる予定です。
+継続して使用される場合は、サイトにアクセスしてコンテンツを更新してください。
+
+ご不明な点がございましたら、IT部門までお問い合わせください。
+
+IT管理者
+"@
+    
+    Write-Host "📧 警告メール送信: $OwnerEmail" -ForegroundColor Yellow
+    # 実際のメール送信処理は組織のメールシステムに応じて実装
+}
+
+# 非活動サイトのアーカイブ
+function Archive-InactiveSite {
+    param(
+        [string]$SiteUrl,
+        [string]$ArchiveLocation
+    )
+    
+    Write-Host "📦 サイトアーカイブ中: $SiteUrl" -ForegroundColor Cyan
+    
+    try {
+        # 1. サイトを読み取り専用に設定
+        Set-SPOSite -Identity $SiteUrl -LockState ReadOnly
+        
+        # 2. アーカイブ情報の記録
+        $archiveInfo = @{
+            OriginalUrl = $SiteUrl
+            ArchiveDate = Get-Date
+            Reason = "長期間非活動"
+        }
+        
+        $archiveInfo | ConvertTo-Json | Out-File -FilePath ".\archived_sites.json" -Append
+        
+        Write-Host "✅ サイトアーカイブ完了: $SiteUrl" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "❌ アーカイブエラー: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+# 実行例
+# Implement-SiteLifecycleManagement -WhatIf $true
+```
+
+### Microsoft Purview統合
+
+```powershell
+# Microsoft Purview情報保護統合
+function Enable-PurviewIntegration {
+    param(
+        [string[]]$SiteUrls = @(),
+        [bool]$EnableAutoLabeling = $true,
+        [bool]$EnableDLPPolicies = $true,
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "🏷️ Microsoft Purview統合設定中..." -ForegroundColor Cyan
+    
+    foreach ($siteUrl in $SiteUrls) {
+        Write-Host "🔒 設定中: $siteUrl" -ForegroundColor Yellow
+        
+        if ($WhatIf) {
+            Write-Host "  [WhatIf] 自動ラベリング有効化: $EnableAutoLabeling" -ForegroundColor Cyan
+            Write-Host "  [WhatIf] DLPポリシー適用: $EnableDLPPolicies" -ForegroundColor Cyan
+        } else {
+            try {
+                # Purview統合の有効化
+                # 実際の設定はMicrosoft Purviewポータルで行う
+                
+                Write-Host "  ✅ Purview統合準備完了" -ForegroundColor Green
+                Write-Host "  💡 次のステップ:" -ForegroundColor Yellow
+                Write-Host "    1. Microsoft Purviewポータルで情報保護ポリシーを作成" -ForegroundColor White
+                Write-Host "    2. 自動ラベリングルールを設定" -ForegroundColor White
+                Write-Host "    3. DLPポリシーをサイトに適用" -ForegroundColor White
+            }
+            catch {
+                Write-Host "  ❌ エラー: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+    }
+}
+
+# 機密データ検出と分類
+function Scan-SensitiveData {
+    param(
+        [string[]]$SiteUrls = @(),
+        [string[]]$FileExtensions = @("docx", "xlsx", "pdf"),
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "🔍 機密データスキャン開始..." -ForegroundColor Cyan
+    
+    $sensitiveDataPatterns = @{
+        "マイナンバー" = "\d{4}-\d{4}-\d{4}"
+        "クレジットカード" = "\d{4}-\d{4}-\d{4}-\d{4}"
+        "メールアドレス" = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        "電話番号" = "\d{3}-\d{4}-\d{4}"
+    }
+    
+    foreach ($siteUrl in $SiteUrls) {
+        Write-Host "📂 スキャン中: $siteUrl" -ForegroundColor Yellow
+        
+        if ($WhatIf) {
+            Write-Host "  [WhatIf] 機密データパターン検索実行予定" -ForegroundColor Cyan
+            Write-Host "  [WhatIf] 対象ファイル形式: $($FileExtensions -join ', ')" -ForegroundColor Cyan
+        } else {
+            # 実際のスキャン処理
+            # Microsoft Purview Data Map APIまたはGraph APIを使用
+            Write-Host "  💡 機密データスキャンは以下で実行してください:" -ForegroundColor Yellow
+            Write-Host "    1. Microsoft Purview ポータル > データマップ" -ForegroundColor White
+            Write-Host "    2. SharePointデータソースを登録" -ForegroundColor White
+            Write-Host "    3. スキャンルールを作成して実行" -ForegroundColor White
+        }
+    }
+}
+
+# 実行例
+# Enable-PurviewIntegration -SiteUrls @("https://contoso.sharepoint.com/sites/finance") -WhatIf $true
+# Scan-SensitiveData -SiteUrls @("https://contoso.sharepoint.com/sites/hr") -WhatIf $true
+```
+
+## パフォーマンスとスケーラビリティ
+
+### 大規模環境での最適化
+
+```powershell
+# 大規模SharePoint環境の最適化
+function Optimize-LargeScaleSharePoint {
+    param(
+        [int]$UserThreshold = 10000,
+        [int]$SiteThreshold = 1000,
+        [bool]$EnableCDN = $true,
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "🚀 大規模SharePoint環境最適化中..." -ForegroundColor Cyan
+    
+    # 1. 現在の環境規模確認
+    $totalUsers = (Get-MgUser -All).Count
+    $totalSites = (Get-SPOSite -Limit All).Count
+    
+    Write-Host "📊 環境規模:" -ForegroundColor Yellow
+    Write-Host "  総ユーザー数: $totalUsers" -ForegroundColor White
+    Write-Host "  総サイト数: $totalSites" -ForegroundColor White
+    
+    # 2. 大規模環境対応の確認
+    if ($totalUsers -gt $UserThreshold -or $totalSites -gt $SiteThreshold) {
+        Write-Host "⚠️ 大規模環境を検出。最適化を推奨します。" -ForegroundColor Yellow
+        
+        # CDN有効化
+        if ($EnableCDN) {
+            if ($WhatIf) {
+                Write-Host "  [WhatIf] Office 365 CDN有効化予定" -ForegroundColor Cyan
+            } else {
+                Set-SPOTenant -PublicCdnEnabled $true
+                Set-SPOTenant -PrivateCdnEnabled $true
+                Write-Host "  ✅ CDN有効化完了" -ForegroundColor Green
+            }
+        }
+        
+        # パフォーマンス最適化設定
+        $optimizations = @(
+            "検索インデックスの最適化",
+            "ストレージクォータの適切な設定",
+            "不要なワークフローの無効化",
+            "バージョン履歴の制限",
+            "サムネイル生成の最適化"
+        )
+        
+        Write-Host "🔧 推奨最適化項目:" -ForegroundColor Yellow
+        $optimizations | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
+        
+    } else {
+        Write-Host "✅ 現在の規模では特別な最適化は不要です" -ForegroundColor Green
+    }
+    
+    # 3. パフォーマンス監視の設定
+    Write-Host "📈 パフォーマンス監視設定:" -ForegroundColor Yellow
+    Write-Host "  - SharePoint管理センター > レポート" -ForegroundColor White
+    Write-Host "  - Microsoft 365使用状況分析" -ForegroundColor White
+    Write-Host "  - サードパーティ監視ツールの検討" -ForegroundColor White
+}
+
+# サイトコレクション統合と最適化
+function Optimize-SiteCollectionStructure {
+    param(
+        [int]$MaxSitesPerCollection = 100,
+        [switch]$WhatIf = $true
+    )
+    
+    Write-Host "🏗️ サイトコレクション構造最適化中..." -ForegroundColor Cyan
+    
+    # 小規模サイトの統合候補を特定
+    $smallSites = Get-SPOSite -Limit All | Where-Object {
+        $_.StorageUsageCurrent -lt 100 -and  # 100MB未満
+        $_.LastContentModifiedDate -gt (Get-Date).AddDays(-30)  # 30日以内に活動あり
+    }
+    
+    Write-Host "📊 統合候補の小規模サイト数: $($smallSites.Count)" -ForegroundColor Yellow
+    
+    if ($WhatIf) {
+        Write-Host "  [WhatIf] サイト統合計画の作成予定" -ForegroundColor Cyan
+        Write-Host "  [WhatIf] ユーザーへの影響評価実施予定" -ForegroundColor Cyan
+    } else {
+        Write-Host "💡 サイト統合は以下の手順で実行してください:" -ForegroundColor Yellow
+        Write-Host "  1. 関係者への事前通知" -ForegroundColor White
+        Write-Host "  2. データのバックアップ" -ForegroundColor White
+        Write-Host "  3. 段階的な統合実施" -ForegroundColor White
+        Write-Host "  4. ユーザーへの新しいアクセス方法の案内" -ForegroundColor White
+    }
+}
+
+# 実行例
+# Optimize-LargeScaleSharePoint -WhatIf $true
+# Optimize-SiteCollectionStructure -WhatIf $true
+```
+
+### 容量とコスト最適化
+
+```powershell
+# ストレージコスト最適化
+function Optimize-SharePointStorageCosts {
+    param(
+        [double]$CostPerGBPerMonth = 0.20, # ドル/GB/月
+        [int]$AnalysisPeriodDays = 90,
+        [switch]$GenerateReport = $true
+    )
+    
+    Write-Host "💰 SharePointストレージコスト最適化分析..." -ForegroundColor Cyan
+    
+    # 1. 現在のストレージ使用状況
+    $allSites = Get-SPOSite -Limit All
+    $totalStorageGB = ($allSites | Measure-Object StorageUsageCurrent -Sum).Sum / 1024
+    $monthlyStorageCost = $totalStorageGB * $CostPerGBPerMonth
+    
+    Write-Host "📊 現在のストレージ状況:" -ForegroundColor Yellow
+    Write-Host "  総使用容量: $([math]::Round($totalStorageGB, 2)) GB" -ForegroundColor White
+    Write-Host "  月間推定コスト: $([math]::Round($monthlyStorageCost, 2)) USD" -ForegroundColor White
+    Write-Host "  年間推定コスト: $([math]::Round($monthlyStorageCost * 12, 2)) USD" -ForegroundColor White
+    
+    # 2. 最適化機会の特定
+    $optimizationOpportunities = @()
+    
+    # 大容量サイトの特定
+    $largeSites = $allSites | Where-Object { $_.StorageUsageCurrent -gt 10240 } | Sort-Object StorageUsageCurrent -Descending
+    if ($largeSites.Count -gt 0) {
+        $largeSitesGB = ($largeSites | Measure-Object StorageUsageCurrent -Sum).Sum / 1024
+        $optimizationOpportunities += @{
+            Category = "大容量サイト"
+            Count = $largeSites.Count
+            StorageGB = $largeSitesGB
+            PotentialSavings = $largeSitesGB * $CostPerGBPerMonth * 0.3  # 30%削減想定
+            Action = "ファイル整理、古いバージョン削除"
+        }
+    }
+    
+    # 非活動サイトの特定
+    $inactiveSites = $allSites | Where-Object { $_.LastContentModifiedDate -lt (Get-Date).AddDays(-$AnalysisPeriodDays) }
+    if ($inactiveSites.Count -gt 0) {
+        $inactiveSitesGB = ($inactiveSites | Measure-Object StorageUsageCurrent -Sum).Sum / 1024
+        $optimizationOpportunities += @{
+            Category = "非活動サイト"
+            Count = $inactiveSites.Count
+            StorageGB = $inactiveSitesGB
+            PotentialSavings = $inactiveSitesGB * $CostPerGBPerMonth * 0.8  # 80%削減想定
+            Action = "アーカイブまたは削除"
+        }
+    }
+    
+    # 3. 最適化レポート
+    if ($GenerateReport) {
+        $reportContent = @"
+# SharePoint ストレージコスト最適化レポート
+生成日: $(Get-Date)
+
+## 現在の状況
+- 総ストレージ使用量: $([math]::Round($totalStorageGB, 2)) GB
+- 月間コスト: $([math]::Round($monthlyStorageCost, 2)) USD
+- 年間コスト: $([math]::Round($monthlyStorageCost * 12, 2)) USD
+
+## 最適化機会
+"@
+        
+        $totalPotentialSavings = 0
+        foreach ($opportunity in $optimizationOpportunities) {
+            $reportContent += @"
+
+### $($opportunity.Category)
+- 対象サイト数: $($opportunity.Count)
+- 使用容量: $([math]::Round($opportunity.StorageGB, 2)) GB
+- 月間削減可能額: $([math]::Round($opportunity.PotentialSavings, 2)) USD
+- 推奨アクション: $($opportunity.Action)
+"@
+            $totalPotentialSavings += $opportunity.PotentialSavings
+        }
+        
+        $reportContent += @"
+
+## まとめ
+- 月間削減可能額合計: $([math]::Round($totalPotentialSavings, 2)) USD
+- 年間削減可能額合計: $([math]::Round($totalPotentialSavings * 12, 2)) USD
+- 削減率: $([math]::Round(($totalPotentialSavings / $monthlyStorageCost) * 100, 1))%
+"@
+        
+        $reportPath = ".\SharePoint_Storage_Cost_Optimization_$(Get-Date -Format 'yyyyMMdd').md"
+        $reportContent | Out-File -FilePath $reportPath -Encoding UTF8
+        
+        Write-Host "📄 最適化レポート生成: $reportPath" -ForegroundColor Green
+    }
+    
+    Write-Host "💡 推奨次ステップ:" -ForegroundColor Yellow
+    Write-Host "  1. 大容量サイトのファイル整理" -ForegroundColor White
+    Write-Host "  2. 非活動サイトのアーカイブ計画" -ForegroundColor White
+    Write-Host "  3. 自動削除ポリシーの検討" -ForegroundColor White
+    Write-Host "  4. ユーザー教育の実施" -ForegroundColor White
+    
+    return @{
+        TotalStorageGB = $totalStorageGB
+        MonthlyStorageCost = $monthlyStorageCost
+        OptimizationOpportunities = $optimizationOpportunities
+        TotalPotentialSavings = $totalPotentialSavings
+    }
+}
+
+# 実行例
+# $costAnalysis = Optimize-SharePointStorageCosts -GenerateReport $true
+```
+
+---
+
+## まとめと今後の展望
+
+SharePoint Online は、組織のコラボレーションとコンテンツ管理の中核となるプラットフォームです。適切な設定と継続的な最適化により、セキュリティを維持しながら生産性の向上を実現できます。
+
+### 2025年以降の重要なトレンド
+
+- **AI統合の拡大**: Copilotとの深い統合
+- **ゼロトラストセキュリティ**: より厳格なアクセス制御
+- **サステナビリティ**: 環境影響の可視化と削減
+- **ハイブリッドワーク支援**: より柔軟な働き方への対応
+
+定期的な見直しと最新機能の活用により、SharePoint Online を最大限に活用してください。

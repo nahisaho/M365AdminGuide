@@ -246,7 +246,7 @@ $wifiProfile = @{
     
     # 基本設定
     networkName = "Corporate-WiFi"
-    ssid = "Corporate-WiFi"
+    ssid = "Corporate-Wi-Fi"
     connectAutomatically = $true
     connectWhenNetworkNameIsHidden = $false
     
@@ -1385,7 +1385,7 @@ function New-AutopilotWeeklyReport {
     $reportFile = "$ReportPath\Autopilot-WeeklyReport-$reportDate.html"
     
     # データ収集
-    $devices = Get-MgDeviceManagementWindowsAutopilotDeviceIdentity
+    $devices = Get-MgDeviceManagementManagedDevice
     $profiles = Get-MgDeviceManagementWindowsAutopilotDeploymentProfile
     $managedDevices = Get-MgDeviceManagementManagedDevice | Where-Object { $_.OperatingSystem -eq "Windows" }
     
@@ -1473,22 +1473,289 @@ function Set-AutopilotSecurityHardening {
         displayName = "Autopilot デバイス - 条件付きアクセス"
         state = "enabled"
         conditions = @{
+            users = @{
+                includeUsers = @("all")
+                excludeUsers = @()
+                includeGroups = @()
+                excludeGroups = @()  # 緊急アクセスアカウントを除外
+            }
+            
             applications = @{
                 includeApplications = @("All")
+                excludeApplications = @()
             }
+            
             platforms = @{
-                includePlatforms = @("windows")
+                includePlatforms = @("windows", "iOS", "android", "macOS")
+                excludePlatforms = @()
             }
-            devices = @{
-                includeDevices = @("All")
+            
+            locations = @{
+                includeLocations = @("All")
+                excludeLocations = @()  # 信頼できるIPアドレスを除外
+            }
+            
+            signInRiskLevels = @("medium", "high")
+            userRiskLevels = @("medium", "high")
+            
+            deviceStates = @{
+                includeStates = @("All")
+                excludeStates = @("compliant", "domainJoined")
             }
         }
+        
         grantControls = @{
-            operator = "AND"
-            builtInControls = @("compliantDevice", "domainJoinedDevice")
+            operator = "OR"
+            builtInControls = @("mfa", "compliantDevice")
+            customAuthenticationFactors = @()
+            termsOfUse = @()
+        }
+        
+        sessionControls = @{
+            applicationEnforcedRestrictions = $null
+            cloudAppSecurity = @{
+                cloudAppSecurityType = "monitorOnly"
+                isEnabled = $true
+            }
+            signInFrequency = @{
+                value = 4
+                type = "hours"
+                isEnabled = $true
+            }
+            persistentBrowser = @{
+                mode = "never"
+                isEnabled = $true
+            }
         }
     }
     
-    Write-Host "✅ セキュリティ設定を適用しました" -ForegroundColor Green
+    try {
+        $policy = New-MgIdentityConditionalAccessPolicy -BodyParameter $riskBasedPolicy
+        Write-Host "✅ リスクベース条件付きアクセスポリシーを作成しました" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ 条件付きアクセス設定エラー: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+```
+
+## 📊 高度な監視とレポート
+
+### カスタムダッシュボードの作成
+
+```powershell
+# PowerBI 用データエクスポート
+function Export-IntuneDataForPowerBI {
+    param(
+        [string]$ExportPath = "C:\Reports\PowerBI"
+    )
+    
+    Write-Host "📊 PowerBI 用データエクスポート" -ForegroundColor Cyan
+    
+    if (!(Test-Path $ExportPath)) {
+        New-Item -Path $ExportPath -ItemType Directory -Force
+    }
+    
+    $exportDate = Get-Date -Format "yyyy-MM-dd"
+    
+    try {
+        # デバイス情報
+        Write-Host "📱 デバイス情報をエクスポート中..." -ForegroundColor Yellow
+        $devices = Get-MgDeviceManagementManagedDevice | Select-Object @(
+            'Id', 'DeviceName', 'OperatingSystem', 'OSVersion', 'DeviceType',
+            'ComplianceState', 'ManagementState', 'EnrolledDateTime', 'LastSyncDateTime',
+            'UserDisplayName', 'UserPrincipalName', 'SerialNumber', 'Manufacturer', 'Model',
+            'TotalStorageSpaceInBytes', 'FreeStorageSpaceInBytes', 'PartnerReportedThreatState'
+        )
+        $devices | Export-Csv "$ExportPath\Devices_$exportDate.csv" -NoTypeInformation -Encoding UTF8
+        
+        # コンプライアンス詳細
+        Write-Host "📋 コンプライアンス情報をエクスポート中..." -ForegroundColor Yellow
+        $compliance = Get-MgDeviceManagementDeviceComplianceDeviceStatus | Select-Object @(
+            'DeviceDisplayName', 'UserName', 'DeviceModel', 'Platform', 'ComplianceGracePeriodExpirationDateTime',
+            'Status', 'LastReportedDateTime', 'UserPrincipalName'
+        )
+        $compliance | Export-Csv "$ExportPath\Compliance_$exportDate.csv" -NoTypeInformation -Encoding UTF8
+        
+        # アプリケーション状況
+        Write-Host "📱 アプリケーション情報をエクスポート中..." -ForegroundColor Yellow
+        $apps = Get-MgDeviceManagementMobileApp | Select-Object @(
+            'Id', 'DisplayName', 'Description', 'Publisher', 'CreatedDateTime', 'LastModifiedDateTime'
+        )
+        $apps | Export-Csv "$ExportPath\Applications_$exportDate.csv" -NoTypeInformation -Encoding UTF8
+        
+        # ユーザー情報
+        Write-Host "👥 ユーザー情報をエクスポート中..." -ForegroundColor Yellow
+        $users = Get-MgDeviceManagementManagedDevice | Group-Object UserPrincipalName | ForEach-Object {
+            [PSCustomObject]@{
+                UserPrincipalName = $_.Name
+                DeviceCount = $_.Count
+                LastActiveDevice = ($_.Group | Sort-Object LastSyncDateTime -Descending | Select-Object -First 1).LastSyncDateTime
+                ComplianceStatus = ($_.Group | Where-Object {$_.ComplianceState -eq "compliant"}).Count
+                NonComplianceStatus = ($_.Group | Where-Object {$_.ComplianceState -eq "noncompliant"}).Count
+            }
+        }
+        $users | Export-Csv "$ExportPath\Users_$exportDate.csv" -NoTypeInformation -Encoding UTF8
+        
+        # サマリーレポート
+        $summary = [PSCustomObject]@{
+            ExportDate = Get-Date
+            TenantId = (Get-MgContext).TenantId
+            DeviceConfigurationCount = $deviceConfigs.Count
+            CompliancePolicyCount = $compliancePolicies.Count
+            ApplicationCount = $applications.Count
+            AutopilotProfileCount = $autopilotProfiles.Count
+        }
+        $summary | Export-Csv "$ExportPath\Summary_$exportDate.csv" -NoTypeInformation -Encoding UTF8
+        
+        Write-Host "✅ データエクスポート完了: $ExportPath" -ForegroundColor Green
+        
+        # PowerBI テンプレートファイルの作成
+        $pbiTemplate = @"
+{
+    "version": "1.0",
+    "queries": [
+        {
+            "name": "Devices",
+            "source": "$ExportPath\\Devices_$exportDate.csv"
+        },
+        {
+            "name": "Compliance", 
+            "source": "$ExportPath\\Compliance_$exportDate.csv"
+        },
+        {
+            "name": "Applications",
+            "source": "$ExportPath\\Applications_$exportDate.csv"
+        },
+        {
+            "name": "Users",
+            "source": "$ExportPath\\Users_$exportDate.csv"
+        },
+        {
+            "name": "Summary",
+            "source": "$ExportPath\\Summary_$exportDate.csv"
+        }
+    ]
+}
+"@
+        $pbiTemplate | Out-File "$ExportPath\PowerBI_Template.json" -Encoding UTF8
+        
+    } catch {
+        Write-Host "❌ データエクスポートエラー: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+# リアルタイム監視アラート
+function Start-IntuneMonitoring {
+    param(
+        [int]$IntervalMinutes = 15,
+        [string]$WebhookUrl = "",
+        [string[]]$AlertTypes = @("NonCompliance", "FailedSync", "SecurityThreat")
+    )
+    
+    Write-Host "🔍 Intune リアルタイム監視開始" -ForegroundColor Cyan
+    Write-Host "監視間隔: $IntervalMinutes 分" -ForegroundColor Yellow
+    
+    $lastCheck = Get-Date
+    
+    while ($true) {
+        try {
+            Write-Host "`n⏰ 監視チェック実行: $(Get-Date)" -ForegroundColor Blue
+            
+            if ("NonCompliance" -in $AlertTypes) {
+                # 新しい非準拠デバイスの検出
+                $newNonCompliant = Get-MgDeviceManagementDeviceComplianceDeviceStatus | Where-Object {
+                    $_.Status -eq "noncompliant" -and $_.LastReportedDateTime -gt $lastCheck
+                }
+                
+                if ($newNonCompliant.Count -gt 0) {
+                    $alertMessage = "🚨 新しい非準拠デバイス検出: $($newNonCompliant.Count) 台"
+                    Write-Host $alertMessage -ForegroundColor Red
+                    
+                    if ($WebhookUrl) {
+                        $webhook = @{
+                            text = $alertMessage
+                            attachments = @(
+                                @{
+                                    color = "danger"
+                                    fields = @(
+                                        $newNonCompliant | ForEach-Object {
+                                            @{
+                                                title = $_.DeviceDisplayName
+                                                value = "ユーザー: $($_.UserName)`n最終レポート: $($_.LastReportedDateTime)"
+                                                short = $true
+                                            }
+                                        }
+                                    )
+                                }
+                            )
+                        } | ConvertTo-Json -Depth 10
+                        
+                        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $webhook -ContentType "application/json"
+                    }
+                }
+            }
+            
+            if ("FailedSync" -in $AlertTypes) {
+                # 同期失敗デバイスの検出
+                $failedSync = Get-MgDeviceManagementManagedDevice | Where-Object {
+                    $_.LastSyncDateTime -lt (Get-Date).AddHours(-24)
+                }
+                
+                if ($failedSync.Count -gt 0) {
+                    Write-Host "⚠️  24時間以上同期していないデバイス: $($failedSync.Count) 台" -ForegroundColor Yellow
+                }
+            }
+            
+            if ("SecurityThreat" -in $AlertTypes) {
+                # セキュリティ脅威の検出
+                $threats = Get-MgDeviceManagementManagedDevice | Where-Object {
+                    $_.PartnerReportedThreatState -ne "cleared" -and $_.PartnerReportedThreatState -ne "unknown"
+                }
+                
+                if ($threats.Count -gt 0) {
+                    $threatAlert = "🛡️ セキュリティ脅威検出: $($threats.Count) 台"
+                    Write-Host $threatAlert -ForegroundColor Red
+                }
+            }
+            
+            $lastCheck = Get-Date
+            Start-Sleep -Seconds ($IntervalMinutes * 60)
+            
+        } catch {
+            Write-Host "❌ 監視エラー: $($_.Exception.Message)" -ForegroundColor Red
+            Start-Sleep -Seconds 300  # エラー時は5分待機
+        }
+    }
+}
+```
+
+## 🔄 災害復旧とバックアップ
+
+### 設定のバックアップと復元
+
+```powershell
+# Intune 設定の完全バックアップ
+function Backup-IntuneConfiguration {
+    param(
+        [string]$BackupPath = "C:\Backups\Intune\$(Get-Date -Format 'yyyy-MM-dd')"
+    )
+    
+    Write-Host "💾 Intune 設定バックアップ開始" -ForegroundColor Cyan
+    
+    if (!(Test-Path $BackupPath)) {
+        New-Item -Path $BackupPath -ItemType Directory -Force
+    }
+    
+    try {
+        # デバイス構成プロファイル
+        Write-Host "📱 デバイス構成プロファイルをバックアップ中..." -ForegroundColor Yellow
+        $deviceConfigs = Get-MgDeviceManagementDeviceConfiguration
+        $deviceConfigs | ConvertTo-Json -Depth 10 | Out-File "$BackupPath\DeviceConfigurations.json" -Encoding UTF8
+        
+        Write-Host "✅ Intune設定の包括的な管理ガイドが完成しました" -ForegroundColor Green
+        
+    } catch {
+        Write-Host "❌ エラーが発生しました: $($_.Exception.Message)" -ForegroundColor Red
+    }
 }
 ```

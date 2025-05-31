@@ -94,6 +94,14 @@ Microsoft 365 管理マニュアルの詳細な目次です。
   - 条件付きアクセス連携
   - レポートと監視
 
+- [教育機関向けデバイス初期設定](education-device-setup.md)
+  - Windows Autopilot セットアップ
+  - Provisioning Package 作成
+  - iOS デバイス登録（Apple School Manager連携）
+  - 最低限必要なIntune設定
+  - 教育機関特化のセキュリティポリシー
+  - 展開チェックリスト・トラブルシューティング
+
 ## 📊 監視・レポート
 
 ### 分析・レポート

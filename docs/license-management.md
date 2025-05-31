@@ -14,7 +14,7 @@ Microsoft 365 Education には主に3つのライセンスプランがあり、�
 |------|----|----|----| 
 | **Exchange Online** | ✅ 2GB | ✅ 100GB | ✅ 100GB |
 | **SharePoint Online** | ✅ 1TB | ✅ 1TB | ✅ 1TB |
-| **OneDrive for Business** | ✅ 1TB | ✅ 1TB | ✅ 1TB |
+| **OneDrive for Business** | ✅ 最大100GB | ✅ 最大100GB | ✅ 最大100GB |
 | **Microsoft Teams** | ✅ 基本 | ✅ 拡張 | ✅ 拡張 |
 | **Office アプリ（Web版）** | ✅ | ✅ | ✅ |
 | **Office アプリ（デスクトップ）** | ❌ | ✅ | ✅ |

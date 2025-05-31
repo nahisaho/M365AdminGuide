@@ -1,16 +1,56 @@
-# ユーザー管理
+# 👥 Microsoft 365 ユーザー管理ガイド
 
-Microsoft 365 でのユーザー管理に関するガイドです。
+## 📋 概要
 
-## 概要
+Microsoft 365におけるユーザーアカウントの総合的な管理手順を説明します。教育機関での実運用を想定し、GUI操作からPowerShell自動化、年次更新プロセス、パスワードレス認証まで網羅的にカバーします。
 
-Microsoft 365 では、Microsoft Entra ID (旧 Azure Active Directory) を通じてユーザーアカウントを管理します。管理者は Microsoft 365 管理センターまたは PowerShell を使用してユーザーの作成、編集、削除を行うことができます。
+## 🎯 このドキュメントで学べること
 
-## 前提条件
+```text
+基本操作：
+├── GUI（Microsoft 365管理センター）でのユーザー管理
+├── PowerShellでの個別ユーザー操作
+├── CSVファイルを活用した一括処理
+└── 教育機関特有の運用プロセス
 
-- Microsoft 365 管理者権限
-- 適切なライセンス
-- PowerShell 使用時は Microsoft Graph PowerShell モジュール
+高度な管理：
+├── アカウントライフサイクル管理
+├── 年次更新の自動化
+├── パスワードレス認証の実装
+└── セキュリティ強化手法
+```
+
+## ✅ 前提条件
+
+### 必要な権限
+
+- **Microsoft 365管理者権限**（User Administrator以上）
+- **Microsoft Entra ID Premium**（条件付きアクセス利用時）
+- **適切なライセンス**（管理対象ユーザー分）
+
+### 技術要件
+
+```powershell
+# 必要なPowerShellモジュール
+Install-Module Microsoft.Graph -Force
+Install-Module ImportExcel -Force  # CSV処理の拡張用
+```
+
+### 事前準備
+
+```text
+組織情報：
+├── ドメイン設定完了
+├── ライセンス購入・割り当て計画
+├── セキュリティポリシー策定
+└── 運用ルール確立
+
+技術環境：
+├── PowerShell実行環境
+├── CSVファイル管理方法
+├── バックアップ・復旧手順
+└── 監査ログ設定
+```
 
 ## ユーザーの作成
 
@@ -73,6 +113,7 @@ Update-MgUser -UserId "tanaka@contoso.onmicrosoft.com" -DisplayName "田中 次�
 ### ライセンスの割り当て
 
 #### 💡 ライセンス別機能比較
+
 | 機能 | A1 | A3 | A5 |
 |------|----|----|----| 
 | デスクトップ Office | ❌ | ✅ | ✅ |
@@ -582,6 +623,7 @@ Create-DepartmentLicenseGroups
 #### ⚠️ 動的グループの注意事項とベストプラクティス
 
 ##### 注意事項
+
 1. **ライセンス要件**: Microsoft Entra ID Premium P1 または P2 が必要
 2. **処理時間**: メンバーシップの更新には最大24時間かかる場合がある
 3. **ルール制限**: 複雑すぎるルールは避ける

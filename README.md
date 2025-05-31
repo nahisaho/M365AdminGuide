@@ -5,6 +5,9 @@ Microsoft 365 の管理に関する包括的なガイドです。
 ## 📚 目次
 
 - [🚀 はじめに](#はじめに)
+- [📖 本書の概要と前提知識](docs/overview-and-prerequisites.md)
+- [🏢 Microsoft 365 の基本概念とライセンス構成](docs/microsoft-365-basics-and-licensing.md)
+- [🔧 Microsoft 365 初期セットアップガイド](docs/initial-setup-guide.md)
 - [👥 ユーザー管理](docs/user-management.md)
 - [🔐 セキュリティ管理](docs/security-management.md)
 - [📧 Exchange Online](docs/exchange-online.md)
